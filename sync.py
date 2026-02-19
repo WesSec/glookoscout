@@ -147,7 +147,16 @@ def upload_to_glooko():
     except Exception as e:
         print(f"An error occurred during upload: {e}")
     finally:
-        driver.quit()
+        try:
+            driver.quit()
+        except:
+            pass
+        try:
+            if os.path.exists(absolute_file_path):
+                os.remove(absolute_file_path)
+                print(f"Cleaned up: Deleted {OUTPUT_FILE}")
+        except OSError as e:
+            print(f"Warning: Could not delete {OUTPUT_FILE}. Error: {e}")
 
 def main():
     if not NIGHTSCOUT_URL or not GLOOKO_EMAIL:
