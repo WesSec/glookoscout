@@ -33,7 +33,7 @@ Copy the example configuration file and fill in your details:
 |--- |--- |--- |
 |NIGHTSCOUT_URL|The full URL of your Nightscout instance (no trailing slash).|https://ns.yourdomain.com|
 |NIGHTSCOUT_API_TOKEN|A readable API token. Generate this in the Nightscout Admin settings.|mytoken-12345abcdef|
-|PAST_DAYS|Number of days of historical glucose data to fetch and upload.|30|
+|PAST_DAYS|Number of days of historical glucose data to fetch and upload. Please note that historic data in glooko will be overwritten on each upload|30|
 |GENERATOR_NAME|The name attached to the generated LibreView CSV file.|John Doe|
 |LIBRE_SERIAL_NUMBER|A unique identifier for your "device". This can be any random string (like a UUID), but it must remain exactly the same across all your uploads so Glooko groups the data correctly. You can generate a random UUID at https://www.uuidgenerator.net/|64448acc-c17a-4f79-af29-c0e674b874c9|
 |GLOOKO_EMAIL|The email address you use to log into Glooko.|user@domain.com|
