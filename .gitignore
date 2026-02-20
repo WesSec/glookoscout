@@ -83,4 +83,4 @@ main.py
 upload_test.py
 downloaded_files/
 nightscout_history.csv
-nightscout_history.csv
+tests/
