@@ -39,6 +39,7 @@ Copy the example configuration file and fill in your details:
 |GLOOKO_EMAIL|The email address you use to log into Glooko.|user@domain.com|
 |GLOOKO_PASSWORD|The password for your Glooko account.|SuperSecret123!|
 |HEADLESS_BROWSER|Set to False to watch the browser perform the upload visually. Set to True to run it invisibly in the background.|True|
+|APPRISE_URL|(Optional) An [Apprise](https://github.com/caronc/apprise) notification URL. If configured, you will receive a push notification if the script encounters an error fetching data or if the Glooko upload fails. You can use this to send alerts to Discord, Slack, Ntfy, Telegram, and many more.|ntfy://ntfy.sh/mysecretglookotopic|
 
 ⚠️ SECURITY WARNING: Your Glooko password is stored in plain text inside the file. Do not commit this file to version control (it is excluded in by default). Because of this, it is highly recommended that you use a strong, unique password for your Glooko account that you do not use anywhere else.
 
