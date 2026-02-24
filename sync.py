@@ -3,10 +3,19 @@ import sys
 import time
 import csv
 import requests
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from seleniumbase import Driver
 from selenium.webdriver.common.by import By
+
+# --- Logging Configuration ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 # Load configuration from .env file
 load_dotenv()
@@ -24,22 +33,24 @@ HEADLESS = os.getenv("HEADLESS_BROWSER", "True").lower() == "true"
 OUTPUT_FILE = "nightscout_history.csv"
 
 def check_nightscout_units():
-    print(f"Checking Nightscout configuration at {NIGHTSCOUT_URL}...")
+    logger.info(f"Checking Nightscout configuration at {NIGHTSCOUT_URL}...")
     try:
         response = requests.get(f"{NIGHTSCOUT_URL}/api/v1/status.json", params={"token": NIGHTSCOUT_TOKEN})
         response.raise_for_status()
         units = response.json().get("settings", {}).get("units", "")
         
         if "mmol" not in units.lower():
-            print(f"ERROR: Nightscout is configured to use '{units}', not 'mmol/L'. Currently only mmol/L is supported.")
+            logger.error(f"Nightscout is configured to use '{units}', not 'mmol/L'. Currently only mmol/L is supported.")
             sys.exit(1)
     except requests.exceptions.RequestException as e:
-        print(f"Failed to fetch status from Nightscout. Error: {e}")
+        logger.error(f"Failed to fetch status from Nightscout. Error: {e}")
         sys.exit(1)
 
 def fetch_nightscout_data():
-    print(f"Fetching glucose records for the past {PAST_DAYS} days...")
-    start_date = datetime.utcnow() - timedelta(days=PAST_DAYS)
+    logger.info(f"Fetching glucose records for the past {PAST_DAYS} days...")
+    
+    # FIX: Use timezone-aware UTC datetime instead of datetime.utcnow()
+    start_date = datetime.now(timezone.utc) - timedelta(days=PAST_DAYS)
     start_timestamp_ms = int(start_date.timestamp() * 1000)
     
     params = {
@@ -50,16 +61,18 @@ def fetch_nightscout_data():
     
     response = requests.get(f"{NIGHTSCOUT_URL}/api/v1/entries.json", params=params)
     if response.status_code != 200:
-        print(f"Failed to fetch data. HTTP {response.status_code}")
+        logger.error(f"Failed to fetch data. HTTP {response.status_code}")
         sys.exit(1)
         
     data = response.json()
     if not data:
-        print("No data found in Nightscout for the specified timeframe.")
+        logger.warning("No data found in Nightscout for the specified timeframe.")
         sys.exit(1)
 
     data.sort(key=lambda x: x.get("date", 0))
-    generated_on = datetime.utcnow().strftime("%d-%m-%Y %H:%M UTC")
+    
+    # FIX: Use timezone-aware UTC datetime instead of datetime.utcnow()
+    generated_on = datetime.now(timezone.utc).strftime("%d-%m-%Y %H:%M UTC")
 
     col_headers = [
         "Device", "Serial Number", "Device Timestamp", "Record Type", 
@@ -94,11 +107,11 @@ def fetch_nightscout_data():
             ]
             writer.writerow(row)
             
-    print(f"Successfully wrote {len(data)} records to {OUTPUT_FILE}")
+    logger.info(f"Successfully wrote {len(data)} records to {OUTPUT_FILE}")
 
 def upload_to_glooko():
     absolute_file_path = os.path.abspath(OUTPUT_FILE)
-    print("Launching stealth browser for Glooko upload...")
+    logger.info("Launching stealth browser for Glooko upload...")
     
     driver = Driver(uc=True, headless=HEADLESS) 
     
@@ -112,13 +125,13 @@ def upload_to_glooko():
         except Exception:
             pass
 
-        print("Logging in...")
+        logger.info("Logging in...")
         driver.type("#user_email", GLOOKO_EMAIL)
         driver.type("#user_password", GLOOKO_PASSWORD)
         driver.click("#sign-in-button")
         
         driver.wait_for_element_visible("button.AbbottCSVButton_abbottCsvUpload", timeout=15)
-        print("Login successful. Initiating LibreView Upload...")
+        logger.info("Login successful. Initiating LibreView Upload...")
         
         driver.click("button.AbbottCSVButton_abbottCsvUpload")
         driver.wait_for_element_visible('[data-testid="button-file-uploader-upload"]', timeout=5)
@@ -129,23 +142,23 @@ def upload_to_glooko():
         driver.wait_for_element_visible('[data-testid="button-file-uploader-confirm"]', timeout=5)
         driver.click('[data-testid="button-file-uploader-confirm"]')
 
-        print("Waiting for upload to process...")
+        logger.info("Waiting for upload to process...")
         driver.wait_for_element_visible(
             '[data-testid="dialog-file-uploader-success"], [data-testid="dialog-file-uploader-failed"]', 
             timeout=60
         )
 
         if driver.is_element_visible('[data-testid="dialog-file-uploader-success"]'):
-            print("UPLOAD SUCCESSFUL!")
+            logger.info("UPLOAD SUCCESSFUL!")
             driver.click('[data-testid="button-file-uploader-success-done"]')
             time.sleep(2)
         elif driver.is_element_visible('[data-testid="dialog-file-uploader-failed"]'):
-            print("UPLOAD FAILED: Glooko rejected the file.")
+            logger.error("UPLOAD FAILED: Glooko rejected the file.")
             driver.click('[data-testid="button-file-uploader-failed-upload-error-close"]')
             time.sleep(2)
 
     except Exception as e:
-        print(f"An error occurred during upload: {e}")
+        logger.error(f"An error occurred during upload: {e}")
     finally:
         try:
             driver.quit()
@@ -154,13 +167,13 @@ def upload_to_glooko():
         try:
             if os.path.exists(absolute_file_path):
                 os.remove(absolute_file_path)
-                print(f"Cleaned up: Deleted {OUTPUT_FILE}")
+                logger.info(f"Cleaned up: Deleted {OUTPUT_FILE}")
         except OSError as e:
-            print(f"Warning: Could not delete {OUTPUT_FILE}. Error: {e}")
+            logger.warning(f"Could not delete {OUTPUT_FILE}. Error: {e}")
 
 def main():
     if not NIGHTSCOUT_URL or not GLOOKO_EMAIL:
-        print("Missing required environment variables. Please check your .env file.")
+        logger.error("Missing required environment variables. Please check your .env file.")
         sys.exit(1)
         
     check_nightscout_units()
