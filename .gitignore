@@ -84,3 +84,5 @@ upload_test.py
 downloaded_files/
 nightscout_history.csv
 tests/
+treatments_sample.json
+sync.log

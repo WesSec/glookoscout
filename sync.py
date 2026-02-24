@@ -4,6 +4,7 @@ import time
 import csv
 import requests
 import logging
+import apprise
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from seleniumbase import Driver
@@ -29,8 +30,22 @@ SERIAL_NUMBER = os.getenv("LIBRE_SERIAL_NUMBER", "00000000-0000-0000-0000-000000
 GLOOKO_EMAIL = os.getenv("GLOOKO_EMAIL")
 GLOOKO_PASSWORD = os.getenv("GLOOKO_PASSWORD")
 HEADLESS = os.getenv("HEADLESS_BROWSER", "True").lower() == "true"
+APPRISE_URL = os.getenv("APPRISE_URL")
 
 OUTPUT_FILE = "nightscout_history.csv"
+
+def send_notification(title, body):
+    """Sends a notification if APPRISE_URL is configured."""
+    if not APPRISE_URL:
+        return
+    
+    try:
+        apobj = apprise.Apprise()
+        apobj.add(APPRISE_URL)
+        apobj.notify(title=title, body=body)
+        logger.info("Sent failure notification via Apprise.")
+    except Exception as e:
+        logger.error(f"Failed to send Apprise notification: {e}")
 
 def check_nightscout_units():
     logger.info(f"Checking Nightscout configuration at {NIGHTSCOUT_URL}...")
@@ -44,12 +59,12 @@ def check_nightscout_units():
             sys.exit(1)
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to fetch status from Nightscout. Error: {e}")
+        send_notification("GlookoScout Error", f"Failed to fetch status from Nightscout: {e}")
         sys.exit(1)
 
 def fetch_nightscout_data():
     logger.info(f"Fetching glucose records for the past {PAST_DAYS} days...")
     
-    # FIX: Use timezone-aware UTC datetime instead of datetime.utcnow()
     start_date = datetime.now(timezone.utc) - timedelta(days=PAST_DAYS)
     start_timestamp_ms = int(start_date.timestamp() * 1000)
     
@@ -62,6 +77,7 @@ def fetch_nightscout_data():
     response = requests.get(f"{NIGHTSCOUT_URL}/api/v1/entries.json", params=params)
     if response.status_code != 200:
         logger.error(f"Failed to fetch data. HTTP {response.status_code}")
+        send_notification("GlookoScout Error", f"Failed to fetch Nightscout data. HTTP {response.status_code}")
         sys.exit(1)
         
     data = response.json()
@@ -70,8 +86,6 @@ def fetch_nightscout_data():
         sys.exit(1)
 
     data.sort(key=lambda x: x.get("date", 0))
-    
-    # FIX: Use timezone-aware UTC datetime instead of datetime.utcnow()
     generated_on = datetime.now(timezone.utc).strftime("%d-%m-%Y %H:%M UTC")
 
     col_headers = [
@@ -154,11 +168,13 @@ def upload_to_glooko():
             time.sleep(2)
         elif driver.is_element_visible('[data-testid="dialog-file-uploader-failed"]'):
             logger.error("UPLOAD FAILED: Glooko rejected the file.")
+            send_notification("GlookoScout Upload Failed", "Glooko rejected the uploaded CSV file.")
             driver.click('[data-testid="button-file-uploader-failed-upload-error-close"]')
             time.sleep(2)
 
     except Exception as e:
         logger.error(f"An error occurred during upload: {e}")
+        send_notification("GlookoScout Upload Error", f"An exception occurred during browser automation, if this persists, open a github issue:\n{e}")
     finally:
         try:
             driver.quit()

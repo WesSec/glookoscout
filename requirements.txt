@@ -1,3 +1,4 @@
 requests
 seleniumbase
 python-dotenv
+apprise
