@@ -54,6 +54,6 @@ By default, the script runs in headless mode (the browser is hidden). If you enc
 ### Automation
 
 You can easily automate this script with a cron like  
-Please be nice to the glooko servers, lower your lookback period if you do daily uploads
+Please be nice to the glooko servers, lower your lookback period if you do daily uploads:
 
-`0 2 * * * cd /path/to/glookoscout && /usr/bin/python3 sync.py >> sync.log 2>&1`
+`0 7 * * * cd ~/scripts/glookoscout && /usr/bin/python3 sync.py >> ~/scripts/glookoscout/sync.log 2>&1`
