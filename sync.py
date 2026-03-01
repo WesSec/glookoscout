@@ -31,6 +31,7 @@ GLOOKO_EMAIL = os.getenv("GLOOKO_EMAIL")
 GLOOKO_PASSWORD = os.getenv("GLOOKO_PASSWORD")
 HEADLESS = os.getenv("HEADLESS_BROWSER", "True").lower() == "true"
 APPRISE_URL = os.getenv("APPRISE_URL")
+UPTIME_KUMA_URL = os.getenv("UPTIME_KUMA_URL")
 
 OUTPUT_FILE = "nightscout_history.csv"
 
@@ -164,6 +165,12 @@ def upload_to_glooko():
 
         if driver.is_element_visible('[data-testid="dialog-file-uploader-success"]'):
             logger.info("UPLOAD SUCCESSFUL!")
+            if UPTIME_KUMA_URL:
+                try:
+                    requests.get(UPTIME_KUMA_URL, timeout=10)
+                    logger.info("Successfully pinged Uptime Kuma.")
+                except Exception as e:
+                    logger.error(f"Failed to ping Uptime Kuma: {e}")
             driver.click('[data-testid="button-file-uploader-success-done"]')
             time.sleep(2)
         elif driver.is_element_visible('[data-testid="dialog-file-uploader-failed"]'):
