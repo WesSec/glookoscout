@@ -54,6 +54,12 @@ python sync.py
 
 By default, the script runs in headless mode (the browser is hidden). If you encounter Captcha issues or want to watch the upload process, change in your .env: `HEADLESS_BROWSER=False`
 
+### Reliability
+
+The script handles the Glooko cookie-consent (OneTrust) banner defensively: the banner can appear (or reappear) after login and its overlay would otherwise intercept clicks on the upload button. The banner is dismissed automatically before login and again before the upload, and the upload-button click is retried up to 3 times before the run is reported as failed.
+
+Failure notifications sent via Apprise are HTML-escaped, so they are safe for HTML-parsing targets such as Telegram.
+
 ### Automation
 
 You can easily automate this script with a cron like  

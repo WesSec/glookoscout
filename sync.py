@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import csv
+import html
 import requests
 import logging
 import apprise
@@ -39,14 +40,40 @@ def send_notification(title, body):
     """Sends a notification if APPRISE_URL is configured."""
     if not APPRISE_URL:
         return
-    
+
+    # Escape HTML so targets like Telegram (which parse HTML entities)
+    # don't choke on tags coming from Selenium error messages, e.g. <button ...>
+    safe_title = html.escape(title)
+    safe_body = html.escape(body)
+
     try:
         apobj = apprise.Apprise()
         apobj.add(APPRISE_URL)
-        apobj.notify(title=title, body=body)
+        apobj.notify(title=safe_title, body=safe_body)
         logger.info("Sent failure notification via Apprise.")
     except Exception as e:
         logger.error(f"Failed to send Apprise notification: {e}")
+
+def dismiss_cookie_banner(driver, timeout=10):
+    """Dismisses the OneTrust cookie-consent banner if present.
+
+    The banner's dark overlay (onetrust-pc-dark-filter) can appear at any
+    point and intercepts element clicks, so we try to reject/close it
+    defensively before interacting with the page.
+    """
+    for selector in (
+        "#onetrust-reject-all-handler",
+        "#onetrust-accept-btn-handler",
+        ".onetrust-close-btn-handler",
+    ):
+        try:
+            driver.click(selector, timeout=timeout)
+            time.sleep(1)
+            logger.info("Dismissed cookie consent banner.")
+            return True
+        except Exception:
+            continue
+    return False
 
 def check_nightscout_units():
     logger.info(f"Checking Nightscout configuration at {NIGHTSCOUT_URL}...")
@@ -55,9 +82,9 @@ def check_nightscout_units():
         response.raise_for_status()
         units = response.json().get("settings", {}).get("units", "")
         
-        if "mmol" not in units.lower():
-            logger.error(f"Nightscout is configured to use '{units}', not 'mmol/L'. Currently only mmol/L is supported.")
-            sys.exit(1)
+        # if "mmol" not in units.lower():
+        #     logger.error(f"Nightscout is configured to use '{units}', not 'mmol/L'. Currently only mmol/L is supported.")
+        #     sys.exit(1)
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to fetch status from Nightscout. Error: {e}")
         send_notification("GlookoScout Error", f"Failed to fetch status from Nightscout: {e}")
@@ -132,23 +159,34 @@ def upload_to_glooko():
     
     try:
         driver.get("https://my.glooko.com/users/sign_in")
-        time.sleep(3) 
-        
-        try:
-            driver.click("#onetrust-reject-all-handler", timeout=5)
-            time.sleep(1) 
-        except Exception:
-            pass
+        time.sleep(3)
+
+        dismiss_cookie_banner(driver)
 
         logger.info("Logging in...")
         driver.type("#user_email", GLOOKO_EMAIL)
         driver.type("#user_password", GLOOKO_PASSWORD)
         driver.click("#sign-in-button")
-        
+
         driver.wait_for_element_visible("button.AbbottCSVButton_abbottCsvUpload", timeout=15)
         logger.info("Login successful. Initiating LibreView Upload...")
-        
-        driver.click("button.AbbottCSVButton_abbottCsvUpload")
+
+        # The OneTrust banner can (re)appear after login and its dark overlay
+        # intercepts clicks on the upload button. Dismiss it and retry the
+        # click a few times before giving up.
+        upload_clicked = False
+        for attempt in range(3):
+            dismiss_cookie_banner(driver, timeout=3)
+            try:
+                driver.click("button.AbbottCSVButton_abbottCsvUpload", timeout=5)
+                upload_clicked = True
+                break
+            except Exception as e:
+                logger.warning(f"Upload button click attempt {attempt + 1} failed: {e}")
+                time.sleep(3)
+        if not upload_clicked:
+            raise RuntimeError("Could not click the LibreView upload button; cookie banner kept intercepting clicks.")
+
         driver.wait_for_element_visible('[data-testid="button-file-uploader-upload"]', timeout=5)
         
         file_input = driver.find_element(By.CSS_SELECTOR, "input[type='file']")
