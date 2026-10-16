@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  glookoscout:
+    build: .
+    container_name: glookoscout
+    # Automatically pulls all your variables from the .env file
+    environment:
+      - TZ=Europe/Amsterdam
+    env_file:
+      - .env 
+    # Optional: Prevents the container from restarting infinitely if Nightscout is down
+    restart: "no"

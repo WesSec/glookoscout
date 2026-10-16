@@ -86,3 +86,4 @@ nightscout_history.csv
 tests/
 treatments_sample.json
 sync.log
+login_debug.png
