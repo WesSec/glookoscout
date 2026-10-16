@@ -168,7 +168,11 @@ def upload_to_glooko():
         driver.type("#user_password", GLOOKO_PASSWORD)
         driver.click("#sign-in-button")
 
-        driver.wait_for_element_visible("button.AbbottCSVButton_abbottCsvUpload", timeout=15)
+        # Glooko's frontend uses hashed CSS-module class names (e.g.
+        # AbbottCSVButton_abbottCsvUpload) that change on deploys, so match
+        # the button by its visible text instead.
+        upload_button_selector = "//button[contains(normalize-space(.), 'Upload LibreView Data')]"
+        driver.wait_for_element_visible(upload_button_selector, by="xpath", timeout=15)
         logger.info("Login successful. Initiating LibreView Upload...")
 
         # The OneTrust banner can (re)appear after login and its dark overlay
@@ -178,7 +182,7 @@ def upload_to_glooko():
         for attempt in range(3):
             dismiss_cookie_banner(driver, timeout=3)
             try:
-                driver.click("button.AbbottCSVButton_abbottCsvUpload", timeout=5)
+                driver.click(upload_button_selector, by="xpath", timeout=5)
                 upload_clicked = True
                 break
             except Exception as e:
