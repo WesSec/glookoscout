@@ -111,6 +111,24 @@ def fetch_nightscout_data():
     data = response.json()
     if not data:
         logger.warning("No data found in Nightscout for the specified timeframe.")
+        send_notification("GlookoScout Error", "No data found in Nightscout for the specified timeframe.")
+        sys.exit(1)
+
+    # Sanity check: a healthy CGM polling every few minutes should yield
+    # hundreds/thousands of records over PAST_DAYS. A tiny result set means
+    # something is wrong (partial Nightscout DB, wrong query, etc.) and the
+    # generated CSV would silently wipe out recent history in Glooko.
+    MIN_RECORDS = 100
+    if len(data) < MIN_RECORDS:
+        logger.error(
+            f"Fetched only {len(data)} records for the past {PAST_DAYS} days "
+            f"(minimum expected: {MIN_RECORDS}). Aborting to avoid uploading bad data."
+        )
+        send_notification(
+            "GlookoScout Error",
+            f"Fetched only {len(data)} records for the past {PAST_DAYS} days "
+            f"(minimum expected: {MIN_RECORDS}). Aborting upload."
+        )
         sys.exit(1)
 
     data.sort(key=lambda x: x.get("date", 0))
